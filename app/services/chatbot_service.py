@@ -4,7 +4,14 @@ from datetime import datetime
 from openai import OpenAI
 from app.config.database import db
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Initialize OpenAI client safely
+api_key = os.getenv("OPENAI_API_KEY")
+client = None
+if api_key:
+    try:
+        client = OpenAI(api_key=api_key)
+    except Exception as e:
+        print(f"⚠️ OpenAI initialization failed: {e}")
 
 class ChatbotService:
     @staticmethod
@@ -56,6 +63,11 @@ class ChatbotService:
             }
 
         # Use OpenAI for dynamic responses if no keywords match prominently
+        if not client:
+             return {
+                "response": "Sorry, I am currently in basic mode.\n\n**You can ask about:**\n• Mess menu 🍽\n• WiFi Information 📶\n• Laundry Booking 🧺\n• Complaints / Tickets 🎫\n• Latest Announcements 📢\n• Your Room & Fees 🏠"
+            }
+
         try:
             prompt_context = "You are 'HostelPro Assistant', a premium and polite chatbot for a hostel management system. Respond concisely."
             if not user_id:
