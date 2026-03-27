@@ -12,7 +12,12 @@ payment_bp = Blueprint("payment", __name__)
 
 UPLOAD_FOLDER = 'uploads/receipts'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Ensure uploads directory exists (Wrap in try-except for read-only filesystems like Vercel)
+try:
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+except Exception as e:
+    print(f"⚠️ Could not create payment uploads directory: {e}")
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -32,7 +37,11 @@ def upload_receipt():
         
     if file and allowed_file(file.filename):
         filename = secure_filename(f"{user_id}_{datetime.now().strftime('%Y%m')}_{file.filename}")
-        file.save(os.path.join(UPLOAD_FOLDER, filename))
+        try:
+            file.save(os.path.join(UPLOAD_FOLDER, filename))
+        except Exception as e:
+            print(f"❌ Failed to save receipt: {e}")
+            return jsonify({"msg": "File upload is not supported on this environment. Please contact administrator."}), 500
         
         payment_data = {
             "student_id": ObjectId(user_id),
@@ -130,11 +139,14 @@ def send_payment_reminder(payment_id):
     if "qr_image" in request.files:
         qr_file = request.files["qr_image"]
         if qr_file and qr_file.filename != "" and allowed_file(qr_file.filename):
-            qr_filename = secure_filename(f"qr_{payment_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{qr_file.filename}")
-            qr_save_path = os.path.join("uploads/qr_codes", qr_filename)
-            os.makedirs("uploads/qr_codes", exist_ok=True)
-            qr_file.save(qr_save_path)
-            qr_url = f"/uploads/qr_codes/{qr_filename}"
+            try:
+                qr_filename = secure_filename(f"qr_{payment_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{qr_file.filename}")
+                qr_save_path = os.path.join("uploads/qr_codes", qr_filename)
+                os.makedirs("uploads/qr_codes", exist_ok=True)
+                qr_file.save(qr_save_path)
+                qr_url = f"/uploads/qr_codes/{qr_filename}"
+            except Exception as e:
+                print(f"⚠️ QR code save failed (Read-only filesystem): {e}")
 
     # Build readable message text
     base_msg = f"💰 Payment Reminder: ₹{due_amount} due for {month} {year}."

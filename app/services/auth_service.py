@@ -90,21 +90,24 @@ class AuthService:
                 
                 # Handle files if provided
                 if files:
-                    # Ensure the directory exists before saving
-                    os.makedirs(AuthService.UPLOAD_FOLDER, exist_ok=True)
-                    if 'photo' in files:
-                        photo = files['photo']
-                        if photo.filename != '':
-                            photo_filename = secure_filename(f"{user_id}_photo_{photo.filename}")
-                            photo.save(os.path.join(AuthService.UPLOAD_FOLDER, photo_filename))
-                            student_data['photo_path'] = photo_filename
-                            
-                    if 'id_proof' in files:
-                        id_proof = files['id_proof']
-                        if id_proof.filename != '':
-                            id_filename = secure_filename(f"{user_id}_id_{id_proof.filename}")
-                            id_proof.save(os.path.join(AuthService.UPLOAD_FOLDER, id_filename))
-                            student_data['id_proof_path'] = id_filename
+                    # Ensure the directory exists before saving (Safe for Vercel)
+                    try:
+                        os.makedirs(AuthService.UPLOAD_FOLDER, exist_ok=True)
+                        if 'photo' in files:
+                            photo = files['photo']
+                            if photo.filename != '':
+                                photo_filename = secure_filename(f"{user_id}_photo_{photo.filename}")
+                                photo.save(os.path.join(AuthService.UPLOAD_FOLDER, photo_filename))
+                                student_data['photo_path'] = photo_filename
+                                
+                        if 'id_proof' in files:
+                            id_proof = files['id_proof']
+                            if id_proof.filename != '':
+                                id_filename = secure_filename(f"{user_id}_id_{id_proof.filename}")
+                                id_proof.save(os.path.join(AuthService.UPLOAD_FOLDER, id_filename))
+                                student_data['id_proof_path'] = id_filename
+                    except Exception as e:
+                        print(f"⚠️ File upload failed (Read-only filesystem): {e}")
 
                 Student.create_student(user_id, student_data)
                 print(f"DEBUG: Student record created for user {user_id}")
@@ -156,22 +159,32 @@ class AuthService:
             return {"msg": "No files provided"}, 400
         try:
             from app.models.student_model import Student
-            os.makedirs(AuthService.UPLOAD_FOLDER, exist_ok=True)
+            try:
+                os.makedirs(AuthService.UPLOAD_FOLDER, exist_ok=True)
+            except Exception as e:
+                print(f"⚠️ Could not create upload folder: {e}")
+                
             update_data = {}
 
             if 'photo' in files:
                 photo = files['photo']
                 if photo.filename:
                     filename = secure_filename(f"{user_id}_photo_{photo.filename}")
-                    photo.save(os.path.join(AuthService.UPLOAD_FOLDER, filename))
-                    update_data['photo_path'] = filename
+                    try:
+                        photo.save(os.path.join(AuthService.UPLOAD_FOLDER, filename))
+                        update_data['photo_path'] = filename
+                    except Exception as e:
+                        print(f"❌ Photo save failed: {e}")
 
             if 'id_proof' in files:
                 id_proof = files['id_proof']
                 if id_proof.filename:
                     filename = secure_filename(f"{user_id}_id_{id_proof.filename}")
-                    id_proof.save(os.path.join(AuthService.UPLOAD_FOLDER, filename))
-                    update_data['id_proof_path'] = filename
+                    try:
+                        id_proof.save(os.path.join(AuthService.UPLOAD_FOLDER, filename))
+                        update_data['id_proof_path'] = filename
+                    except Exception as e:
+                        print(f"❌ ID Proof save failed: {e}")
 
             if update_data:
                 user = User.collection.find_one({"_id": ObjectId(user_id)})
