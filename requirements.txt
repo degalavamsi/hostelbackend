@@ -1,0 +1,12 @@
+flask
+pymongo
+flask-jwt-extended
+python-dotenv
+werkzeug
+flask-cors
+marshmallow
+dnspython
+openai
+certifi
+requests
+gunicorn
