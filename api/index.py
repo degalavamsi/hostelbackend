@@ -1,3 +1,10 @@
+import sys
+import os
+from pathlib import Path
+
+# Add the project root to sys.path to ensure 'app' can be imported
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from app.main import app
 
 class PrefixMiddleware(object):
