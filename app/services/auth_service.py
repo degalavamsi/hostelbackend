@@ -35,6 +35,10 @@ class AuthService:
     def login(email, password):
         try:
             print(f"DEBUG: Login attempt for {email}")
+            if not password or len(password) < 8:
+                print(f"DEBUG: Login failed - Password empty or too short: {email}")
+                return {"msg": "Invalid credentials"}, 401
+                
             user = User.find_by_email(email)
             if not user:
                 print(f"DEBUG: Login failed - User not found: {email}")

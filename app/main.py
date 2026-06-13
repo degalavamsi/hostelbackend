@@ -20,6 +20,7 @@ from app.config.database import db
 load_dotenv()
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "hostel-pro-super-secret-key-123")
 app.secret_key = app.config["JWT_SECRET_KEY"]
 if not os.getenv("JWT_SECRET_KEY"):
@@ -63,10 +64,9 @@ def health_check():
         "environment": os.getenv("FLASK_ENV", "production")
     }
     try:
-        from app.config.database import Database
+        from app.config.database import Database, MockDatabase
         # Check if Database.db is a MockDatabase
-        from app.config.database import MockDatabase
-        if isinstance(db, MockDatabase):
+        if isinstance(Database.connect(), MockDatabase):
             health_status["database"] = "offline (Mocking Enabled)"
             health_status["status"] = "degraded"
         else:

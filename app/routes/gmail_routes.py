@@ -15,10 +15,16 @@ def gmail_auth():
     """
     Initiates Google OAuth 2.0 flow and redirects the user to the Google Consent Screen.
     """
+    is_local = "localhost" in request.host or "127.0.0.1" in request.host
+    host_url = request.host_url
+    if not is_local:
+        host_url = host_url.replace("http://", "https://")
+    redirect_uri = host_url.rstrip('/') + '/callback'
+
     flow = Flow.from_client_secrets_file(
         'credentials.json',
         scopes=SCOPES,
-        redirect_uri='http://127.0.0.1:5000/callback'
+        redirect_uri=redirect_uri
     )
     # prompt='consent' forces Google to supply a refresh_token
     # access_type='offline' enables background refreshing
@@ -37,10 +43,16 @@ def oauth_callback():
     Receives the callback from Google OAuth, retrieves the token credentials,
     saves them to MongoDB, and sends a test email to the configured sender address.
     """
+    is_local = "localhost" in request.host or "127.0.0.1" in request.host
+    host_url = request.host_url
+    if not is_local:
+        host_url = host_url.replace("http://", "https://")
+    redirect_uri = host_url.rstrip('/') + '/callback'
+
     flow = Flow.from_client_secrets_file(
         'credentials.json',
         scopes=SCOPES,
-        redirect_uri='http://127.0.0.1:5000/callback',
+        redirect_uri=redirect_uri,
         state=session.get('oauth_state')
     )
     flow.fetch_token(

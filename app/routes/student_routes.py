@@ -47,7 +47,7 @@ def register_details():
         student_data = {
             "phone": request.form.get("phone"),
             "emergency_contact": request.form.get("emergency_contact"),
-            "id_document_path": id_filename,
+            "id_proof_path": id_filename,
             "photo_path": photo_filename,
         }
         
@@ -68,6 +68,14 @@ def approve_student(student_id):
     Student.update_status(ObjectId(student_id), "approved")
     # Activate user account
     User.activate_user(ObjectId(student["user_id"]))
+    
+    # Send email notification
+    user = User.collection.find_one({"_id": ObjectId(student["user_id"])})
+    if user and user.get("email"):
+        from app.services.gmail_service import GmailService
+        subject = "Hostel Admission Approved"
+        body = f"Hello {user.get('username', 'Student')},\n\nYou have been successfully approved in the hostel!"
+        GmailService.send_email_safe(user.get("email"), subject, body)
     
     return jsonify({"msg": "Student approved and account activated"}), 200
 
@@ -132,6 +140,26 @@ def allocate_room():
             "room_allocation", 
             f"You have been allocated Room {room_number}, Bed {bed_number}. Monthly rent: ₹{rent_amount}."
         )
+        
+        # Send email notification
+        user = User.collection.find_one({"_id": ObjectId(student["user_id"])})
+        if user and user.get("email"):
+            from app.services.gmail_service import GmailService
+            subject = "Hostel Room Allocation Success"
+            body = (
+                f"Hello {user.get('username', 'Student')},\n\n"
+                f"You have been allocated a room in the hostel!\n\n"
+                f"Details:\n"
+                f"- Room Number: {room_number}\n"
+                f"- Bed Number: {bed_number}\n"
+                f"- Block: {block}\n"
+                f"- Floor: {floor}\n"
+                f"- Monthly Rent: ₹{rent_amount}\n"
+                f"- Security Deposit: ₹{deposit}\n"
+                f"- Joining Date: {join_date}\n\n"
+                f"Please login to the HostelPro dashboard for details and receipts."
+            )
+            GmailService.send_email_safe(user.get("email"), subject, body)
 
     return jsonify({"msg": f"Student allocated to room {room_number}, bed {bed_number}"}), 200
 
@@ -143,20 +171,51 @@ def search_students():
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 10))
     
-    students_cursor = Student.collection.find({
-        "$or": [
-            {"username": {"$regex": query, "$options": "i"}},
-            {"email": {"$regex": query, "$options": "i"}},
+    # 1. Find all user IDs in the User collection that match the username, email, or phone
+    matched_user_ids = []
+    if query:
+        users = list(User.collection.find({
+            "$or": [
+                {"username": {"$regex": query, "$options": "i"}},
+                {"email": {"$regex": query, "$options": "i"}},
+                {"phone": {"$regex": query, "$options": "i"}}
+            ]
+        }))
+        matched_user_ids = [u["_id"] for u in users]
+        
+    # 2. Build student search criteria
+    search_criteria = {}
+    if query:
+        id_filters = []
+        for uid in matched_user_ids:
+            id_filters.append({"user_id": uid})
+            id_filters.append({"user_id": str(uid)})
+            
+        search_or = [
             {"phone": {"$regex": query, "$options": "i"}},
             {"room_number": {"$regex": query, "$options": "i"}},
             {"status": {"$regex": query, "$options": "i"}}
         ]
-    }).skip((page - 1) * per_page).limit(per_page)
+        if id_filters:
+            search_or.extend(id_filters)
+            
+        search_criteria = {"$or": search_or}
+        
+    students_cursor = Student.collection.find(search_criteria).skip((page - 1) * per_page).limit(per_page)
     
     students = list(students_cursor)
     for s in students:
         s["_id"] = str(s["_id"])
         s["user_id"] = str(s["user_id"])
+        
+        # Enrich from User collection
+        user = User.collection.find_one({"_id": ObjectId(s["user_id"])})
+        if user:
+            s["username"] = user.get("username", s.get("username", "Unknown"))
+            s["email"] = user.get("email", s.get("email", ""))
+            if not s.get("phone"):
+                s["phone"] = user.get("phone", "")
+                
     return jsonify(students), 200
 
 @student_bp.route("/update-deposit-status/<student_id>", methods=["PUT"])

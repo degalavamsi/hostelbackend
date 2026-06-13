@@ -107,6 +107,15 @@ def google_login():
             )
             user = User.collection.find_one({"_id": insert_result.inserted_id})
             
+            # Auto-create the Student document
+            from app.models.student_model import Student
+            student_data = {
+                "username": username,
+                "email": email,
+                "phone": user.get("phone", "")
+            }
+            Student.create_student(user["_id"], student_data)
+            
         if not user.get("is_active", True):
             return jsonify({"msg": "User account is inactive"}), 400
             

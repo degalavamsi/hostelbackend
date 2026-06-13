@@ -114,13 +114,16 @@ def get_room_beds(room_id):
         # A student record might have user_id pointing to User collection
         from app.models.student_model import Student
         student = Student.get_by_user_id(b["student_id"])
-        if student:
-            user = User.collection.find_one({"_id": student["user_id"]})
+        if student and ObjectId.is_valid(str(student["user_id"])):
+            user = User.collection.find_one({"_id": ObjectId(str(student["user_id"]))})
             b["student_name"] = user.get("username", "Unknown") if user else "Unknown"
         else:
             # Fallback if student_id in Bed points directly to User (it shouldn't, but just in case)
-            user = User.collection.find_one({"_id": ObjectId(b["student_id"])})
-            b["student_name"] = user.get("username", "Unknown") if user else "Unknown"
+            if ObjectId.is_valid(b["student_id"]):
+                user = User.collection.find_one({"_id": ObjectId(b["student_id"])})
+                b["student_name"] = user.get("username", "Unknown") if user else "Unknown"
+            else:
+                b["student_name"] = "Unknown"
             
     return jsonify(beds), 200
 

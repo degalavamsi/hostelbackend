@@ -97,3 +97,20 @@ class GmailService:
         
         result = service.users().messages().send(userId='me', body=body).execute()
         return result
+
+    @classmethod
+    def send_email_safe(cls, to, subject, body_text):
+        """
+        Sends an email but catches all exceptions so it doesn't crash the calling function.
+        """
+        if not to:
+            print("⚠️ Gmail: Recipient email is empty. Skipping.")
+            return False
+            
+        try:
+            cls.send_email(to, subject, body_text)
+            print(f"📧 Gmail: Email successfully sent to {to}")
+            return True
+        except Exception as e:
+            print(f"⚠️ Gmail: Failed to send email to {to}: {e}")
+            return False

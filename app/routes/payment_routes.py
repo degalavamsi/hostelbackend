@@ -123,6 +123,22 @@ def update_payment_status(payment_id):
 @role_required(["admin", "manager"])
 @handle_errors
 def send_payment_reminder(payment_id):
+    if payment_id == "bulk":
+        upi_id = request.form.get("upi_id", "")
+        qr_url = ""
+        if "qr_image" in request.files:
+            qr_file = request.files["qr_image"]
+            if qr_file and qr_file.filename != "" and allowed_file(qr_file.filename):
+                try:
+                    qr_filename = secure_filename(f"qr_bulk_{datetime.now().strftime('%Y%m%d%H%M%S')}_{qr_file.filename}")
+                    qr_save_path = os.path.join("uploads/qr_codes", qr_filename)
+                    os.makedirs("uploads/qr_codes", exist_ok=True)
+                    qr_file.save(qr_save_path)
+                    qr_url = f"/uploads/qr_codes/{qr_filename}"
+                except Exception as e:
+                    print(f"⚠️ QR code save failed (Read-only filesystem): {e}")
+        return jsonify({"msg": "Bulk QR uploaded", "qr_url": qr_url}), 200
+
     payment = Payment.collection.find_one({"_id": ObjectId(payment_id)})
     if not payment:
         return jsonify({"msg": "Payment not found"}), 404
@@ -161,6 +177,28 @@ def send_payment_reminder(payment_id):
         extra["qr_url"] = qr_url
 
     Notification.create(str(payment["student_id"]), "payment_reminder", base_msg, extra=extra if extra else None)
+
+    # Send email notification
+    from app.models.user_model import User
+    student_user = User.collection.find_one({"_id": ObjectId(str(payment["student_id"]))})
+    if student_user and student_user.get("email"):
+        from app.services.gmail_service import GmailService
+        subject = f"Hostel Fee Payment Reminder - {month} {year}"
+        body = (
+            f"Hello {student_user.get('username', 'Student')},\n\n"
+            f"This is a reminder that you have a pending hostel fee payment.\n\n"
+            f"Details:\n"
+            f"- Due Amount: ₹{due_amount}\n"
+            f"- Month/Year: {month} {year}\n"
+        )
+        if upi_id:
+            body += f"- UPI ID to Pay: {upi_id}\n"
+        if custom_message:
+            body += f"- Note from Admin: {custom_message}\n"
+            
+        body += "\nPlease check your dashboard to upload the payment receipt."
+        GmailService.send_email_safe(student_user.get("email"), subject, body)
+
     return jsonify({"msg": "Reminder sent with QR code"}), 200
 
 @payment_bp.route("/generate-monthly-rent", methods=["POST"])
@@ -201,6 +239,26 @@ def generate_rent():
             if qr_url:
                 extra["qr_url"] = qr_url
             Notification.create(s["user_id"], "rent_due", msg, extra=extra if extra else None)
+            
+            # Send email notification
+            from app.models.user_model import User
+            student_user = User.collection.find_one({"_id": ObjectId(str(s["user_id"]))})
+            if student_user and student_user.get("email"):
+                from app.services.gmail_service import GmailService
+                subject = f"Monthly Rent Generated - {month} {year}"
+                body = (
+                    f"Hello {student_user.get('username', 'Student')},\n\n"
+                    f"Your monthly hostel rent has been generated.\n\n"
+                    f"Details:\n"
+                    f"- Month/Year: {month} {year}\n"
+                    f"- Amount: ₹{s.get('rent_amount', amount)}\n"
+                    f"- Due Date: {due_date.strftime('%Y-%m-%d')}\n"
+                )
+                if upi_id:
+                    body += f"- UPI ID to Pay: {upi_id}\n"
+                body += "\nPlease pay and upload your receipt on the dashboard."
+                GmailService.send_email_safe(student_user.get("email"), subject, body)
+
             created_count += 1
 
     return jsonify({"msg": f"Rent generated for {created_count} students"}), 201

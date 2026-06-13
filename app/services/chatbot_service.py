@@ -184,11 +184,29 @@ class ChatbotService:
         if not user_id:
             return {"response": "🏠 **Room Information**\n\nPlease log in to see your personal room number and roommate details."}
         try:
-            student = db["students"].find_one({"user_id": user_id})
+            from app.models.student_model import Student
+            from app.models.user_model import User
+            from bson import ObjectId
+            
+            student = Student.get_by_user_id(user_id)
             if student and student.get("room_number"):
                 room_number = student.get("room_number")
-                roommates = list(db["students"].find({"room_number": room_number, "user_id": {"$ne": user_id}}))
-                roommate_names = ", ".join([r.get("name", "N/A") for r in roommates]) if roommates else "None"
+                student_uid = student.get("user_id")
+                
+                roommates = list(Student.collection.find({
+                    "room_number": room_number,
+                    "user_id": {"$nin": [student_uid, str(student_uid), ObjectId(str(student_uid)) if ObjectId.is_valid(str(student_uid)) else student_uid]}
+                }))
+                
+                roommate_names_list = []
+                for r in roommates:
+                    r_uid = r.get("user_id")
+                    if r_uid:
+                        user_doc = User.collection.find_one({"_id": ObjectId(str(r_uid))}) if ObjectId.is_valid(str(r_uid)) else None
+                        if user_doc:
+                            roommate_names_list.append(user_doc.get("username", "Unknown"))
+                
+                roommate_names = ", ".join(roommate_names_list) if roommate_names_list else "None"
                 
                 return {
                     "response": f"🏠 **Your Room Details**\n\n**Room No:** {room_number}\n**Bed No:** {student.get('bed_number', 'N/A')}\n**Roommate(s):** {roommate_names}"

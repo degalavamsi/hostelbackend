@@ -27,6 +27,31 @@ def get_menu():
 def create_notice():
     data = request.get_json()
     Notice.create_notice(data.get("title"), data.get("content"), data.get("priority"))
+    
+    # Broadcast notice to all approved students via email
+    from app.models.student_model import Student
+    from app.models.user_model import User
+    from app.services.gmail_service import GmailService
+    
+    try:
+        students = list(Student.collection.find({"status": "approved"}))
+        for s in students:
+            user = User.collection.find_one({"_id": ObjectId(str(s["user_id"]))})
+            if user and user.get("email"):
+                subject = f"Notice Board Alert: {data.get('title')}"
+                body = (
+                    f"Hello {user.get('username', 'Student')},\n\n"
+                    f"A new notice has been posted on the Hostel Board:\n\n"
+                    f"Title: {data.get('title')}\n"
+                    f"Priority: {data.get('priority', 'Normal').upper()}\n\n"
+                    f"Content:\n"
+                    f"{data.get('content')}\n\n"
+                    f"Please login to the dashboard to check detail."
+                )
+                GmailService.send_email_safe(user.get("email"), subject, body)
+    except Exception as e:
+        print(f"⚠️ Notice board email broadcast failed: {e}")
+        
     return jsonify({"msg": "Notice posted"}), 201
 
 @notice_bp.route("/", methods=["GET"])
