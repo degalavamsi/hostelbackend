@@ -14,13 +14,16 @@ from app.routes.visitor_routes import visitor_bp
 from app.routes.notification_routes import notification_bp
 from app.routes.utility_routes import utility_bp
 from app.routes.chatbot_routes import chatbot_bp
+from app.routes.gmail_routes import gmail_bp
 from app.config.database import db
 
 load_dotenv()
 
 app = Flask(__name__)
 app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "hostel-pro-super-secret-key-123")
+app.secret_key = app.config["JWT_SECRET_KEY"]
 if not os.getenv("JWT_SECRET_KEY"):
+
     print("⚠️ WARNING: JWT_SECRET_KEY not found in environment. Using default fallback.")
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024 # 16MB file limit
 
@@ -45,6 +48,8 @@ app.register_blueprint(visitor_bp, url_prefix="/visitors")
 app.register_blueprint(notification_bp, url_prefix="/notifications")
 app.register_blueprint(utility_bp, url_prefix="/utilities")
 app.register_blueprint(chatbot_bp, url_prefix="/chatbot")
+app.register_blueprint(gmail_bp, url_prefix="")
+
 
 @app.route("/")
 def index():

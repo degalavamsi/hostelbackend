@@ -19,3 +19,8 @@ build/
 
 # Local uploads
 uploads/
+
+# Google OAuth credentials
+credentials.json
+token.json
+
